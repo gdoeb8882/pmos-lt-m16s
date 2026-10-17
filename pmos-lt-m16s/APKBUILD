@@ -1,21 +1,18 @@
-# Maintainer: You <you@example.com>
 pkgname="device-lt-m16s"
 pkgver="1.0"
 pkgrel="0"
-pkgdesc="LT m16s (MediaTek MT6765)"
+pkgdesc="LT C28 (MediaTek MT6765)"
 arch="aarch64"
 options="!check !strip"
 license="GPL-2.0-only"
 
-# الحزم الأساسية (الواجهات، الجسر، النواة، وأداة إنشاء boot.img)
 depends="
     postmarketos-base
     postmarketos-ui-phosh
     postmarketos-ui-sxmo
-    halium-libhybris
-    linux-lt-m16s
+    linux-lt-mobile-c28
     mkbootimg
-    "
+"
 
 makedepends="devicepkg-dev"
 source="deviceinfo"
@@ -27,3 +24,7 @@ build() {
 package() {
     devicepkg_package $startdir $pkgname
 }
+
+sha512sums="
+8b41ae0a7b4b2852971205b61eb619987b8c7f42ac73878127ae0e7f0f270c1597d7fd48e866f8dee0d6c9b3d741c80c401b26b00113ae441de086575cc95aed  deviceinfo
+"

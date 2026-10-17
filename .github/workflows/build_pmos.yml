@@ -26,26 +26,18 @@ jobs:
 
       - name: Install pmbootstrap from Source
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
           mkdir -p ~/.local/bin
-          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          ln -s ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           pmbootstrap --version
 
       - name: Initialize pmbootstrap (Non-Interactive)
         run: |
-          # إنشاء مجلد pmaports الافتراضي بدون أسئلة تفاعلية
-          echo -e '\n\n' | pmbootstrap init || true
+          # تشغيل init لتجاوز الأسئلة التفاعلية وتنزيل pmaports
+          yes "" | pmbootstrap init || true
           
-          # حقن حزمنا في مستودع pmaports الذي تم إنشاؤه للتو
-          PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
-          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
-          cp -r pmos-linux-lt-m16s "$PMAPORTS_DIR/device/testing/linux-lt-m16s"
-
-      - name: Inject Configuration
-        run: |
-          # كتابة ملف الإعدادات مباشرة لتجاوز أخطاء pmbootstrap init
-          # المسار الصحيح هو ~/.config/pmbootstrap_v3.cfg
+          # حقن الإعدادات مباشرة في ملف التكوين لتجنب أخطاء الأوامر
           mkdir -p ~/.config
           cat > ~/.config/pmbootstrap_v3.cfg << 'CFG'
 [pmbootstrap]
@@ -53,22 +45,29 @@ aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports
 device = lt-m16s
 extra_packages = halium-libhybris
 jobs = 2
-kernel = lt-m16s
+kernel = lt-mobile-c28
 ui = phosh
 user = user
 work = /home/runner/.local/var/pmbootstrap
 CFG
 
+      - name: Copy Packages to pmaports
+        run: |
+          PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
+          mkdir -p "$PMAPORTS_DIR/device/testing"
+          
+          # نسخ الحزم وإعادة تسميتها ليطابقها pmbootstrap
+          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
+          cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
+
       - name: Build Kernel Package
-        run: pmbootstrap build --force linux-lt-m16s
+        run: pmbootstrap build --force linux-lt-mobile-c28
 
       - name: Build Device Package
         run: pmbootstrap build --force device-lt-m16s
 
       - name: Generate postmarketOS Images
-        run: |
-          # --split ضروري لتوليد boot.img و rootfs.img منفصلين
-          pmbootstrap install --split --password 147147
+        run: pmbootstrap install --split --password 147147
 
       - name: Export Images
         run: |
