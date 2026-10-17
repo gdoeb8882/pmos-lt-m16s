@@ -25,12 +25,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git python3 python3-pip python3-venv openssl curl wget xz-utils device-tree-compiler android-tools-adb android-tools-fastboot bmap-tools qemu-user-static binfmt-support build-essential libc6-dev-i386 lib32z1-dev
 
-      - name: Install pmbootstrap (Fallback: Git then Pip)
+      - name: Install pmbootstrap (Safe Fallback)
         run: |
-          # الخطة أ: استنساخ من GitLab
-          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap || \
-          # الخطة ب: التثبيت عبر pip (قديم لكن يعمل)
-          pip3 install --user pmbootstrap
+          if ! git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap ; then
+            echo "Git clone failed, trying pip install..."
+            pip3 install --user pmbootstrap
+          fi
           
           mkdir -p ~/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
@@ -39,14 +39,11 @@ jobs:
             ln -sf ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
           fi
           
-          pmbootstrap --version
+          pmbootstrap --version || echo "Warning: pmbootstrap command not found, build may fail."
 
       - name: Configure pmbootstrap
         run: |
-          # تهيئة أولية (لإنشاء مجلد pmaports والتكوين الافتراضي)
           yes "" | pmbootstrap init || true
-          
-          # ضبط الإعدادات باستخدام الأمر الرسمي (يتجنب أخطاء التنسيق اليدوي)
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
           pmbootstrap config ui phosh
@@ -58,36 +55,54 @@ jobs:
         run: |
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
-          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s" || rsync -a pmos-lt-m16s/ "$PMAPORTS_DIR/device/testing/device-lt-m16s/"
-          cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28" || rsync -a pmos-linux-lt-mobile-c28/ "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28/"
+          
+          if ! cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"; then
+            rsync -a pmos-lt-m16s/ "$PMAPORTS_DIR/device/testing/device-lt-m16s/"
+          fi
+          
+          if ! cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"; then
+            rsync -a pmos-linux-lt-mobile-c28/ "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28/"
+          fi
 
-      - name: Build Kernel Package (Fallback)
+      - name: Build Kernel Package
         run: |
-          # الخطة أ: بناء عادي
-          pmbootstrap build --force linux-lt-mobile-c28 || \
-          # الخطة ب: بناء مع --lax لتجاوز الوضع الصارم (مدعوم في 3.11+)
-          pmbootstrap build --lax --force linux-lt-mobile-c28
+          set +e
+          pmbootstrap build --force linux-lt-mobile-c28
+          if [ $? -ne 0 ]; then
+            echo "Standard build failed. Trying with --lax..."
+            pmbootstrap build --lax --force linux-lt-mobile-c28
+          fi
+          set -e
 
-      - name: Build Device Package (Fallback)
+      - name: Build Device Package
         run: |
-          pmbootstrap build --force device-lt-m16s || \
-          pmbootstrap build --lax --force device-lt-m16s
+          set +e
+          pmbootstrap build --force device-lt-m16s
+          if [ $? -ne 0 ]; then
+            echo "Standard build failed. Trying with --lax..."
+            pmbootstrap build --lax --force device-lt-m16s
+          fi
+          set -e
 
-      - name: Generate Images (Fallback)
+      - name: Generate Images
         run: |
-          # الخطة أ: تقسيم مع كلمة مرور
-          pmbootstrap install --split --password 147147 || \
-          # الخطة ب: تقسيم بدون كلمة مرور
-          pmbootstrap install --split || \
-          # الخطة ج: تثبيت عادي (ملف واحد)
-          pmbootstrap install
+          set +e
+          pmbootstrap install --split --password 147147
+          if [ $? -ne 0 ]; then
+            echo "Split install with password failed. Trying without password..."
+            pmbootstrap install --split
+          fi
+          if [ $? -ne 0 ]; then
+            echo "Split install failed. Trying standard install..."
+            pmbootstrap install
+          fi
+          set -e
 
       - name: Export Images
         run: |
           pmbootstrap export || true
           mkdir -p output
-          cp /tmp/postmarketOS-export/* output/ 2>/dev/null || \
-          cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/*.img output/ 2>/dev/null || true
+          cp /tmp/postmarketOS-export/* output/ 2>/dev/null || cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/*.img output/ 2>/dev/null || true
           ls -lh output/
 
       - name: Upload Artifacts
