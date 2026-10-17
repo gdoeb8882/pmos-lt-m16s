@@ -2,6 +2,7 @@ pkgname="device-lt-m16s"
 pkgver="1.0"
 pkgrel="0"
 pkgdesc="LT C28 (MediaTek MT6765)"
+url="https://postmarketos.org"
 arch="aarch64"
 options="!check !strip !pmb:crossdirect"
 license="GPL-2.0-only"
@@ -24,7 +25,6 @@ build() {
 package() {
     devicepkg_package $startdir $pkgname
 }
-
 
 sha512sums="
 9eebdade0756a3dc38677cd44264faa507c8a3af731dcb6d3e6316e8b1d792a9ea150d5df58d894143dd4ffe9e94ebd318fe36339fef92c23e6dce06254f95cd  deviceinfo
