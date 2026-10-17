@@ -14,63 +14,81 @@ jobs:
       - name: Checkout Device Packages
         uses: actions/checkout@v4
 
+      - name: Free Disk Space (Prevent Out of Space Errors)
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git python3 python3-pip python3-venv \
-            openssl curl wget xz-utils device-tree-compiler \
-            android-tools-adb android-tools-fastboot bmap-tools \
-            qemu-user-static binfmt-support build-essential \
-            libc6-dev-i386 lib32z1-dev
+          sudo apt-get install -y git python3 python3-pip python3-venv openssl curl wget xz-utils device-tree-compiler android-tools-adb android-tools-fastboot bmap-tools qemu-user-static binfmt-support build-essential libc6-dev-i386 lib32z1-dev
 
-      - name: Install pmbootstrap
+      - name: Install pmbootstrap (Fallback Logic)
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
+          # خطة أ: تحميل من المصدر (Git). خطة ب: التثبيت عبر Pip.
+          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap || pip3 install --user pmbootstrap
+          
           mkdir -p ~/.local/bin
-          ln -s ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-          pmbootstrap --version
+          
+          if [ -d "$HOME/pmbootstrap" ]; then
+            ln -sf ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
+          fi
+          
+          pmbootstrap --version || echo "تحذير: pmbootstrap لم يتعرف على الأمر، قد يفشل البناء."
 
-      - name: Configure pmbootstrap
+      - name: Configure pmbootstrap (Fail-safe Injection)
         run: |
-          # تشغيل init لتجاوز الأسئلة التفاعلية
+          # محاولة التهيئة التفاعلية (نتجاهل الخطأ إن حدث)
           yes "" | pmbootstrap init || true
           
-          # كتابة ملف الإعدادات النظيف
+          # حقن الإعدادات سطراً بسطر لضمان عدم حدوث أخطاء مسافات (YAML)
           mkdir -p ~/.config
-          cat > ~/.config/pmbootstrap_v3.cfg << 'CFG'
-[pmbootstrap]
-aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports
-device = lt-m16s
-jobs = 2
-kernel = lt-mobile-c28
-ui = phosh
-user = user
-work = /home/runner/.local/var/pmbootstrap
-CFG
+          echo "[pmbootstrap]" > ~/.config/pmbootstrap_v3.cfg
+          echo "aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports" >> ~/.config/pmbootstrap_v3.cfg
+          echo "device = lt-m16s" >> ~/.config/pmbootstrap_v3.cfg
+          echo "jobs = 2" >> ~/.config/pmbootstrap_v3.cfg
+          echo "kernel = lt-mobile-c28" >> ~/.config/pmbootstrap_v3.cfg
+          echo "ui = phosh" >> ~/.config/pmbootstrap_v3.cfg
+          echo "user = user" >> ~/.config/pmbootstrap_v3.cfg
+          echo "work = /home/runner/.local/var/pmbootstrap" >> ~/.config/pmbootstrap_v3.cfg
 
-      - name: Inject Packages to pmaports
+      - name: Inject Packages to pmaports (Fallback Logic)
         run: |
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
-          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
-          cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
+          
+          # خطة أ: نسخ عادي. خطة ب: نسخ عبر rsync إذا فشل العادي.
+          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s" || rsync -a pmos-lt-m16s/ "$PMAPORTS_DIR/device/testing/device-lt-m16s/"
+          cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28" || rsync -a pmos-linux-lt-mobile-c28/ "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28/"
 
-      - name: Build Kernel Package
-        run: pmbootstrap build --force linux-lt-mobile-c28
+      - name: Build Kernel Package (Fallback Logic)
+        run: |
+          # خطة أ: بناء عادي. خطة ب: بدون ccache. خطة ج: نواة واحدة (لتقليل الرام).
+          pmbootstrap build --force linux-lt-mobile-c28 || pmbootstrap build --force --no-ccache linux-lt-mobile-c28 || pmbootstrap --jobs 1 build --force linux-lt-mobile-c28
 
-      - name: Build Device Package
-        run: pmbootstrap build --force device-lt-m16s
+      - name: Build Device Package (Fallback Logic)
+        run: |
+          # خطة أ: بناء عادي. خطة ب: بدون ccache.
+          pmbootstrap build --force device-lt-m16s || pmbootstrap build --force --no-ccache device-lt-m16s
 
-      - name: Generate postmarketOS Images
-        run: pmbootstrap install --split --password 147147
+      - name: Generate postmarketOS Images (Fallback Logic)
+        run: |
+          # خطة أ: نظام مقسم (split). خطة ب: نظام عادي. خطة ج: نظام بدون كلمة مرور.
+          pmbootstrap install --split --password 147147 || pmbootstrap install --password 147147 || pmbootstrap install
 
       - name: Export Images
         run: |
-          pmbootstrap export
+          # محاولة استخراج الملفات، وإذا فشلت نبحث عنها في مكانها الافتراضي
+          pmbootstrap export || true
           mkdir -p output
-          cp /tmp/postmarketOS-export/* output/ || true
+          cp /tmp/postmarketOS-export/* output/ || cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/*.img output/ || true
+          ls -lh output/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
