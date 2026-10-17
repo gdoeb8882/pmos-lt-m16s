@@ -1,4 +1,4 @@
-name: Build postmarketOS for LT m16s
+name: Build postmarketOS for LT C28
 
 on:
   workflow_dispatch:
@@ -10,36 +10,45 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
+    env:
+      PMB_APK_NO_CACHE: "1"
+      PMB_SUDO: "sudo"
+
     steps:
-      - name: Checkout Device Packages
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Free Disk Space
+      - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           sudo apt-get clean
           df -h
 
-      - name: Install System Dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git python3 python3-pip python3-venv openssl curl wget xz-utils device-tree-compiler android-tools-adb android-tools-fastboot bmap-tools qemu-user-static binfmt-support build-essential libc6-dev-i386 lib32z1-dev
+          sudo apt-get install -y \
+            git python3 python3-pip python3-venv \
+            openssl curl wget xz-utils device-tree-compiler \
+            android-tools-adb android-tools-fastboot bmap-tools \
+            qemu-user-static binfmt-support build-essential \
+            libc6-dev-i386 lib32z1-dev
 
-      - name: Install pmbootstrap (Safe Fallback)
+      - name: Install pmbootstrap
         run: |
-          if ! git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap ; then
-            echo "Git clone failed, trying pip install..."
-            pip3 install --user pmbootstrap
-          fi
-          
-          mkdir -p ~/.local/bin
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          
-          if [ -d "$HOME/pmbootstrap" ]; then
-            ln -sf ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
-          fi
-          
-          pmbootstrap --version || echo "Warning: pmbootstrap command not found, build may fail."
+          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git "$HOME/pmbootstrap"
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$HOME/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          pmbootstrap --version
+
+      - name: Cache pmbootstrap work directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/var/pmbootstrap
+          key: pmbootstrap-${{ runner.os }}-${{ hashFiles('**/APKBUILD') }}
+          restore-keys: |
+            pmbootstrap-${{ runner.os }}-
 
       - name: Configure pmbootstrap
         run: |
@@ -49,64 +58,72 @@ jobs:
           pmbootstrap config ui phosh
           pmbootstrap config user user
           pmbootstrap config jobs 2
-          pmbootstrap config aports "$HOME/.local/var/pmbootstrap/cache_git/pmaports"
 
-      - name: Inject Packages to pmaports
+      - name: Inject packages into pmaports
         run: |
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
-          
-          if ! cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"; then
-            rsync -a pmos-lt-m16s/ "$PMAPORTS_DIR/device/testing/device-lt-m16s/"
+          if [ ! -d "$PMAPORTS_DIR/device/testing/device-lt-m16s" ]; then
+            cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
           fi
-          
-          if ! cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"; then
-            rsync -a pmos-linux-lt-mobile-c28/ "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28/"
+          if [ ! -d "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28" ]; then
+            cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
           fi
 
-      - name: Build Kernel Package
+      - name: Build kernel package
         run: |
           set +e
           pmbootstrap build --force linux-lt-mobile-c28
-          if [ $? -ne 0 ]; then
-            echo "Standard build failed. Trying with --lax..."
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "Standard build failed (rc=$rc). Trying --lax..."
             pmbootstrap build --lax --force linux-lt-mobile-c28
+            rc=$?
           fi
           set -e
+          exit $rc
 
-      - name: Build Device Package
+      - name: Build device package
         run: |
           set +e
           pmbootstrap build --force device-lt-m16s
-          if [ $? -ne 0 ]; then
-            echo "Standard build failed. Trying with --lax..."
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "Standard build failed (rc=$rc). Trying --lax..."
             pmbootstrap build --lax --force device-lt-m16s
+            rc=$?
           fi
           set -e
+          exit $rc
 
-      - name: Generate Images
+      - name: Generate images
         run: |
           set +e
           pmbootstrap install --split --password 147147
-          if [ $? -ne 0 ]; then
-            echo "Split install with password failed. Trying without password..."
-            pmbootstrap install --split
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "Split install failed (rc=$rc). Trying without split..."
+            pmbootstrap install --password 147147
+            rc=$?
           fi
-          if [ $? -ne 0 ]; then
-            echo "Split install failed. Trying standard install..."
+          if [ $rc -ne 0 ]; then
+            echo "Password install failed (rc=$rc). Trying default install..."
             pmbootstrap install
+            rc=$?
           fi
           set -e
+          exit $rc
 
-      - name: Export Images
+      - name: Export images
         run: |
           pmbootstrap export || true
           mkdir -p output
-          cp /tmp/postmarketOS-export/* output/ 2>/dev/null || cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/*.img output/ 2>/dev/null || true
+          cp /tmp/postmarketOS-export/* output/ 2>/dev/null || \
+            cp "$HOME/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/"*.img output/ 2>/dev/null || true
           ls -lh output/
 
-      - name: Upload Artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: postmarketOS-LT-m16s
+          name: postmarketOS-LT-C28
           path: output/*
