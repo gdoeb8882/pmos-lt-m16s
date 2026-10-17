@@ -40,7 +40,6 @@ jobs:
           pmbootstrap config kernel "lt-m16s"
           pmbootstrap config extra_packages "halium-libhybris"
           pmbootstrap config jobs 2
-          pmbootstrap config deviceinfo_links "skip"
 
       - name: Setup pmaports
         run: |
