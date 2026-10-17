@@ -26,4 +26,3 @@ deviceinfo_flash_offset_tags="0x07808000"
 deviceinfo_kernel_cmdline="bootopt=64S3,32N2,64N2"
 
 # ربط الجهاز بحزمة النواة التي أنشأناها
-deviceinfo_kernel_package="linux-lt-mobile-c28"

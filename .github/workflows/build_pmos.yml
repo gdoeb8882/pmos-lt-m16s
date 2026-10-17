@@ -10,127 +10,71 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
-    env:
-      PMB_APK_NO_CACHE: "1"
-      PMB_SUDO: "sudo"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
-          sudo apt-get clean
-          df -h
-
-      - name: Install system dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git python3 python3-pip python3-venv \
-            openssl curl wget xz-utils device-tree-compiler \
-            android-tools-adb android-tools-fastboot bmap-tools \
-            qemu-user-static binfmt-support build-essential \
-            libc6-dev-i386 lib32z1-dev
+          sudo apt-get install -y git python3 python3-pip python3-venv openssl curl wget xz-utils device-tree-compiler android-tools-adb android-tools-fastboot bmap-tools qemu-user-static binfmt-support build-essential libc6-dev-i386 lib32z1-dev
+
+      - name: Register QEMU
+        run: |
+          sudo update-binfmts --enable qemu-aarch64 || true
+          echo "=== QEMU check ==="
+          ls /proc/sys/fs/binfmt_misc/ || true
+          qemu-aarch64-static --version || true
 
       - name: Install pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git "$HOME/pmbootstrap"
-          mkdir -p "$HOME/.local/bin"
-          ln -sf "$HOME/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap
+          mkdir -p ~/.local/bin
+          ln -s ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           pmbootstrap --version
 
-      - name: Cache pmbootstrap work directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/var/pmbootstrap
-          key: pmbootstrap-${{ runner.os }}-${{ hashFiles('**/APKBUILD') }}
-          restore-keys: |
-            pmbootstrap-${{ runner.os }}-
-
-      - name: Initialize pmbootstrap and inject packages
+      - name: Setup pmaports and Config
         run: |
-          yes "" | pmbootstrap init || true
+          yes "" | pmbootstrap init
+          
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
-          if [ ! -d "$PMAPORTS_DIR/device/testing/device-lt-m16s" ]; then
-            cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
-          fi
-          if [ ! -d "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28" ]; then
-            cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
-          fi
-
-      - name: Configure pmbootstrap
-        run: |
+          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
+          cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
+          
+          cd "$PMAPORTS_DIR/device/testing/device-lt-m16s"
+          pmbootstrap checksum device-lt-m16s
+          cd "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
+          pmbootstrap checksum linux-lt-mobile-c28
+          cd ~
+          
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
           pmbootstrap config ui phosh
-          pmbootstrap config user user
           pmbootstrap config jobs 2
-          pmbootstrap config aports "$HOME/.local/var/pmbootstrap/cache_git/pmaports"
 
-      - name: Verify and checksum packages
+      - name: Build Kernel
         run: |
-          cd "$HOME/.local/var/pmbootstrap/cache_git/pmaports/device/testing"
-          pmbootstrap checksum device-lt-m16s
-          pmbootstrap checksum linux-lt-mobile-c28
-
-      - name: Build kernel package
-        run: |
-          set +e
           pmbootstrap build --force linux-lt-mobile-c28
-          rc=$?
-          if [ $rc -ne 0 ]; then
-            echo "Standard build failed (rc=$rc). Trying --lax..."
-            pmbootstrap build --lax --force linux-lt-mobile-c28
-            rc=$?
-          fi
-          set -e
-          exit $rc
 
-      - name: Build device package
+      - name: Build Device (with QEMU and Log Dump)
         run: |
           set +e
-          pmbootstrap build --force device-lt-m16s
+          pmbootstrap build --force --arch=aarch64 device-lt-m16s
           rc=$?
           if [ $rc -ne 0 ]; then
-            echo "Standard build failed (rc=$rc). Trying --lax..."
-            pmbootstrap build --lax --force device-lt-m16s
-            rc=$?
+            echo "=== BUILD FAILED. LOG DUMP: ==="
+            cat ~/.local/var/pmbootstrap/log.txt | tail -100
+            exit $rc
           fi
           set -e
-          exit $rc
 
-      - name: Generate images
+      - name: Generate Image
         run: |
-          set +e
-          pmbootstrap install --split --password 147147
-          rc=$?
-          if [ $rc -ne 0 ]; then
-            echo "Split install failed (rc=$rc). Trying without split..."
-            pmbootstrap install --password 147147
-            rc=$?
-          fi
-          if [ $rc -ne 0 ]; then
-            echo "Password install failed (rc=$rc). Trying default install..."
-            pmbootstrap install
-            rc=$?
-          fi
-          set -e
-          exit $rc
+          pmbootstrap install --split
 
-      - name: Export images
+      - name: Export
         run: |
-          pmbootstrap export || true
-          mkdir -p output
-          cp /tmp/postmarketOS-export/* output/ 2>/dev/null || \
-            cp "$HOME/.local/var/pmbootstrap/chroot_native/home/pmos/rootfs/"*.img output/ 2>/dev/null || true
-          ls -lh output/
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: postmarketOS-LT-C28
-          path: output/*
+          pmbootstrap export
+          ls -lh /tmp/postmarketOS-export/
