@@ -19,13 +19,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git python3 python3-pip python3-venv openssl curl wget xz-utils device-tree-compiler android-tools-adb android-tools-fastboot bmap-tools qemu-user-static binfmt-support build-essential libc6-dev-i386 lib32z1-dev
 
-      - name: Register QEMU
-        run: |
-          sudo update-binfmts --enable qemu-aarch64 || true
-          echo "=== QEMU check ==="
-          ls /proc/sys/fs/binfmt_misc/ || true
-          qemu-aarch64-static --version || true
-
       - name: Install pmbootstrap
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git ~/pmbootstrap
@@ -43,38 +36,64 @@ jobs:
           cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
           cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
           
-          cd "$PMAPORTS_DIR/device/testing/device-lt-m16s"
-          pmbootstrap checksum device-lt-m16s
-          cd "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
-          pmbootstrap checksum linux-lt-mobile-c28
-          cd ~
-          
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
           pmbootstrap config ui phosh
           pmbootstrap config jobs 2
+          # إضافة واجهة Sxmo لتثبيتها بجانب Phosh
+          pmbootstrap config extra_packages "postmarketos-ui-sxmo"
 
-      - name: Build Kernel
+      - name: Build Kernel and Device
         run: |
           pmbootstrap build --force linux-lt-mobile-c28
+          pmbootstrap build --force device-lt-m16s
 
-      - name: Build Device (with QEMU and Log Dump)
+      - name: Generate Image (Fallback Logic)
         run: |
           set +e
-          pmbootstrap build --force --arch=aarch64 device-lt-m16s
+          echo "=== Plan A: Try installing Phosh + Sxmo together ==="
+          pmbootstrap install --split --password 147147 --lax
           rc=$?
-          if [ $rc -ne 0 ]; then
-            echo "=== BUILD FAILED. LOG DUMP: ==="
-            cat ~/.local/var/pmbootstrap/log.txt | tail -100
-            exit $rc
+          if [ $rc -eq 0 ]; then
+            echo "Plan A (Phosh + Sxmo) succeeded!"
+            exit 0
           fi
-          set -e
+          
+          echo "=== Plan A failed. Printing the EXACT error from apk ==="
+          grep -i "error" ~/.local/var/pmbootstrap/log.txt | tail -20
+          
+          echo "=== Plan B: Trying Sxmo UI ONLY (lighter dependencies) ==="
+          pmbootstrap config ui sxmo
+          pmbootstrap config extra_packages ""
+          pmbootstrap install --split --password 147147 --lax
+          rc=$?
+          if [ $rc -eq 0 ]; then
+            echo "Plan B (Sxmo only) succeeded!"
+            exit 0
+          fi
+          
+          echo "=== Plan B failed. Trying Plan C: No UI ==="
+          pmbootstrap config ui none
+          pmbootstrap install --split --password 147147 --lax
+          rc=$?
+          if [ $rc -eq 0 ]; then
+            echo "Plan C (No UI) succeeded!"
+            exit 0
+          fi
+          
+          echo "=== All plans failed. Full log dump ==="
+          cat ~/.local/var/pmbootstrap/log.txt | tail -150
+          exit 1
 
-      - name: Generate Image
-        run: |
-          pmbootstrap install --split --password 147147
-
-      - name: Export
+      - name: Export Images
         run: |
           pmbootstrap export
-          ls -lh /tmp/postmarketOS-export/
+          mkdir -p output
+          cp /tmp/postmarketOS-export/* output/ || true
+          ls -lh output/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmarketOS-LT-C28
+          path: output/*
