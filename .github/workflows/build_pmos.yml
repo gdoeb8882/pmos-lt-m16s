@@ -72,7 +72,7 @@ jobs:
 
       - name: Generate Image
         run: |
-          pmbootstrap install --split
+          pmbootstrap install --split --password 147147
 
       - name: Export
         run: |
