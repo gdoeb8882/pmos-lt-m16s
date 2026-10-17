@@ -24,7 +24,7 @@ jobs:
             qemu-user-static binfmt-support build-essential \
             libc6-dev-i386 lib32z1-dev
 
-      - name: Install pmbootstrap from Source
+      - name: Install pmbootstrap
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
           mkdir -p ~/.local/bin
@@ -32,18 +32,17 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           pmbootstrap --version
 
-      - name: Initialize pmbootstrap (Non-Interactive)
+      - name: Configure pmbootstrap
         run: |
-          # تشغيل init لتجاوز الأسئلة التفاعلية وتنزيل pmaports
+          # تشغيل init لتجاوز الأسئلة التفاعلية
           yes "" | pmbootstrap init || true
           
-          # حقن الإعدادات مباشرة في ملف التكوين لتجنب أخطاء الأوامر
+          # كتابة ملف الإعدادات النظيف
           mkdir -p ~/.config
           cat > ~/.config/pmbootstrap_v3.cfg << 'CFG'
 [pmbootstrap]
 aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports
 device = lt-m16s
-extra_packages = halium-libhybris
 jobs = 2
 kernel = lt-mobile-c28
 ui = phosh
@@ -51,12 +50,10 @@ user = user
 work = /home/runner/.local/var/pmbootstrap
 CFG
 
-      - name: Copy Packages to pmaports
+      - name: Inject Packages to pmaports
         run: |
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
-          
-          # نسخ الحزم وإعادة تسميتها ليطابقها pmbootstrap
           cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
           cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
 
@@ -74,7 +71,6 @@ CFG
           pmbootstrap export
           mkdir -p output
           cp /tmp/postmarketOS-export/* output/ || true
-          ls -lh output/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
