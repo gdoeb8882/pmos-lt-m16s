@@ -26,27 +26,38 @@ jobs:
 
       - name: Install pmbootstrap from Source
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
-          ln -s ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
+          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           pmbootstrap --version
 
-      - name: Configure pmbootstrap
+      - name: Initialize pmbootstrap (Non-Interactive)
         run: |
-          yes "" | pmbootstrap init || true
-          pmbootstrap config device "lt-m16s"
-          pmbootstrap config ui "phosh"
-          pmbootstrap config kernel "lt-m16s"
-          pmbootstrap config extra_packages "halium-libhybris"
-          pmbootstrap config jobs 2
+          # إنشاء مجلد pmaports الافتراضي بدون أسئلة تفاعلية
+          echo -e '\n\n' | pmbootstrap init || true
+          
+          # حقن حزمنا في مستودع pmaports الذي تم إنشاؤه للتو
+          PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
+          cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
+          cp -r pmos-linux-lt-m16s "$PMAPORTS_DIR/device/testing/linux-lt-m16s"
 
-      - name: Setup pmaports
+      - name: Inject Configuration
         run: |
-          git clone --depth=1 https://gitlab.com/postmarketOS/pmaports.git ~/pmaports
-          cp -r pmos-lt-m16s ~/pmaports/device/testing/device-lt-m16s
-          cp -r pmos-linux-lt-m16s ~/pmaports/device/testing/linux-lt-m16s
-          pmbootstrap config aports "$HOME/pmaports"
+          # كتابة ملف الإعدادات مباشرة لتجاوز أخطاء pmbootstrap init
+          # المسار الصحيح هو ~/.config/pmbootstrap_v3.cfg
+          mkdir -p ~/.config
+          cat > ~/.config/pmbootstrap_v3.cfg << 'CFG'
+[pmbootstrap]
+aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports
+device = lt-m16s
+extra_packages = halium-libhybris
+jobs = 2
+kernel = lt-m16s
+ui = phosh
+user = user
+work = /home/runner/.local/var/pmbootstrap
+CFG
 
       - name: Build Kernel Package
         run: pmbootstrap build --force linux-lt-m16s
@@ -55,7 +66,9 @@ jobs:
         run: pmbootstrap build --force device-lt-m16s
 
       - name: Generate postmarketOS Images
-        run: pmbootstrap install --split --no-sshd --password 147147
+        run: |
+          # --split ضروري لتوليد boot.img و rootfs.img منفصلين
+          pmbootstrap install --split --password 147147
 
       - name: Export Images
         run: |

@@ -1,22 +1,27 @@
-# Device Information for LT m16s (MT6765)
 deviceinfo_format_version="0"
 deviceinfo_name="LT m16s"
-deviceinfo_codename="lt_m16s"
+deviceinfo_manufacturer="LT"
+deviceinfo_codename="lt-m16s"
 deviceinfo_arch="aarch64"
 deviceinfo_generation="mt6765"
 
-# Kernel & Boot Addresses (أرقام MTK القياسية)
+# إعدادات الإقلاع والفلاش (متوافقة مع fastboot و MTK)
+deviceinfo_flash_method="fastboot"
+deviceinfo_generate_bootimg="true"
+deviceinfo_boot_filesystem="ext4"
+deviceinfo_flash_pagesize="4096"
+deviceinfo_header_version="4"
 deviceinfo_flash_offset_kernel="0x00008000"
 deviceinfo_flash_offset_ramdisk="0x01000000"
 deviceinfo_flash_offset_second="0x00f00000"
 deviceinfo_flash_offset_tags="0x00000100"
 
-# Hardware (من فك شفرة DTB)
+# ملف العتاد (DTB) الذي استخرجناه
+deviceinfo_dtb="mediatek/mt6765"
+
+# إعدادات الشاشة واللمس (من فك شفرة DTB)
 deviceinfo_screen_width="720"
 deviceinfo_screen_height="1600"
-deviceinfo_touchscreen="goodix"
-deviceinfo_gpu="Mali-G52"
 
-# Halium Configuration (الاعتماد على تعريفات الأندرويد)
+# إعدادات Halium (الجسر)
 deviceinfo_halium_version="11"
-deviceinfo_kernel_package="linux-lt-m16s"

@@ -7,19 +7,23 @@ arch="aarch64"
 options="!check !strip"
 license="GPL-2.0-only"
 
-# الحزم الأساسية التي سيتم تثبيتها في النظام
+# الحزم الأساسية (الواجهات، الجسر، النواة، وأداة إنشاء boot.img)
 depends="
     postmarketos-base
     postmarketos-ui-phosh
     postmarketos-ui-sxmo
     halium-libhybris
+    linux-lt-m16s
+    mkbootimg
     "
 
-package() {
-    # نسخ ملف deviceinfo
-    install -Dm644 "$srcdir"/deviceinfo \
-        "$pkgdir"/usr/share/deviceinfo/deviceinfo
+makedepends="devicepkg-dev"
+source="deviceinfo"
 
-    # تجهيز مجلدات النواة
-    install -d "$pkgdir"/boot
+build() {
+    devicepkg_build $startdir $pkgname
+}
+
+package() {
+    devicepkg_package $startdir $pkgname
 }
