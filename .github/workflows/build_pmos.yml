@@ -1,0 +1,72 @@
+name: Build postmarketOS for LT m16s
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Device Packages
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git python3 python3-pip python3-venv \
+            openssl curl wget xz-utils device-tree-compiler \
+            android-tools-adb android-tools-fastboot bmap-tools \
+            qemu-user-static binfmt-support build-essential \
+            libc6-dev-i386 lib32z1-dev
+
+      - name: Install pmbootstrap from Source
+        run: |
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
+          mkdir -p ~/.local/bin
+          ln -s ~/pmbootstrap/pmbootstrap.py ~/.local/bin/pmbootstrap
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          pmbootstrap --version
+
+      - name: Configure pmbootstrap
+        run: |
+          yes "" | pmbootstrap init || true
+          pmbootstrap config device "lt-m16s"
+          pmbootstrap config ui "phosh"
+          pmbootstrap config kernel "lt-m16s"
+          pmbootstrap config extra_packages "halium-libhybris"
+          pmbootstrap config jobs 2
+          pmbootstrap config deviceinfo_links "skip"
+
+      - name: Setup pmaports
+        run: |
+          git clone --depth=1 https://gitlab.com/postmarketOS/pmaports.git ~/pmaports
+          cp -r pmos-lt-m16s ~/pmaports/device/testing/device-lt-m16s
+          cp -r pmos-linux-lt-m16s ~/pmaports/device/testing/linux-lt-m16s
+          pmbootstrap config aports "$HOME/pmaports"
+
+      - name: Build Kernel Package
+        run: pmbootstrap build --force linux-lt-m16s
+
+      - name: Build Device Package
+        run: pmbootstrap build --force device-lt-m16s
+
+      - name: Generate postmarketOS Images
+        run: pmbootstrap install --split --no-sshd --password 147147
+
+      - name: Export Images
+        run: |
+          pmbootstrap export
+          mkdir -p output
+          cp /tmp/postmarketOS-export/* output/ || true
+          ls -lh output/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmarketOS-LT-m16s
+          path: output/*

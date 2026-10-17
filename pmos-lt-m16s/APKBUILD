@@ -1,0 +1,25 @@
+# Maintainer: You <you@example.com>
+pkgname="device-lt-m16s"
+pkgver="1.0"
+pkgrel="0"
+pkgdesc="LT m16s (MediaTek MT6765)"
+arch="aarch64"
+options="!check !strip"
+license="GPL-2.0-only"
+
+# الحزم الأساسية التي سيتم تثبيتها في النظام
+depends="
+    postmarketos-base
+    postmarketos-ui-phosh
+    postmarketos-ui-sxmo
+    halium-libhybris
+    "
+
+package() {
+    # نسخ ملف deviceinfo
+    install -Dm644 "$srcdir"/deviceinfo \
+        "$pkgdir"/usr/share/deviceinfo/deviceinfo
+
+    # تجهيز مجلدات النواة
+    install -d "$pkgdir"/boot
+}

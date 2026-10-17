@@ -1,0 +1,14 @@
+pkgname="linux-lt-m16s"
+pkgver="6.6.89"
+pkgrel="0"
+pkgdesc="Prebuilt Android Kernel for LT m16s"
+arch="aarch64"
+options="!check !strip"
+license="GPL-2.0-only"
+
+package() {
+    # نسخ النواة إلى مجلد boot
+    install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz
+    # نسخ ملف العتاد DTB
+    install -Dm644 "$srcdir"/dtb.img "$pkgdir"/boot/dtb.img
+}
