@@ -50,17 +50,9 @@ jobs:
           restore-keys: |
             pmbootstrap-${{ runner.os }}-
 
-      - name: Configure pmbootstrap
+      - name: Initialize pmbootstrap and inject packages
         run: |
           yes "" | pmbootstrap init || true
-          pmbootstrap config device lt-m16s
-          pmbootstrap config kernel lt-mobile-c28
-          pmbootstrap config ui phosh
-          pmbootstrap config user user
-          pmbootstrap config jobs 2
-
-      - name: Inject packages into pmaports
-        run: |
           PMAPORTS_DIR="$HOME/.local/var/pmbootstrap/cache_git/pmaports"
           mkdir -p "$PMAPORTS_DIR/device/testing"
           if [ ! -d "$PMAPORTS_DIR/device/testing/device-lt-m16s" ]; then
@@ -69,6 +61,21 @@ jobs:
           if [ ! -d "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28" ]; then
             cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
           fi
+
+      - name: Configure pmbootstrap
+        run: |
+          pmbootstrap config device lt-m16s
+          pmbootstrap config kernel lt-mobile-c28
+          pmbootstrap config ui phosh
+          pmbootstrap config user user
+          pmbootstrap config jobs 2
+          pmbootstrap config aports "$HOME/.local/var/pmbootstrap/cache_git/pmaports"
+
+      - name: Verify and checksum packages
+        run: |
+          cd "$HOME/.local/var/pmbootstrap/cache_git/pmaports/device/testing"
+          pmbootstrap checksum device-lt-m16s
+          pmbootstrap checksum linux-lt-mobile-c28
 
       - name: Build kernel package
         run: |
