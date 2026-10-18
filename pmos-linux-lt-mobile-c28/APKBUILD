@@ -1,13 +1,13 @@
 pkgname="linux-lt-mobile-c28"
 pkgver="6.6.89"
-pkgrel="1"
+pkgrel="2"
 pkgdesc="Prebuilt Android Kernel for LT C28 (MT6765)"
 url="https://kernel.org"
 arch="aarch64"
 _flavor="lt-mobile-c28"
 license="GPL-2.0-only"
 options="!strip !check !tracedeps pmb:cross-native"
-makedepends=""
+makedepends="kmod"
 source="kernel dtb.img modules.tar.gz"
 
 package() {
@@ -19,9 +19,12 @@ package() {
     install -d "$pkgdir"/usr/share/kernel/$_flavor
     echo "$pkgver" > "$pkgdir"/usr/share/kernel/$_flavor/kernel.release
     
-    # استخراج الوحدات إلى /lib/modules/6.6.89/ (المسار الذي يبحث عنه mkinitfs)
+    # استخراج الوحدات
     install -d "$pkgdir"/lib/modules/$pkgver
     tar -xzf "$srcdir"/modules.tar.gz -C "$pkgdir"/lib/modules/$pkgver/
+    
+    # إعادة توليد modules.dep بالمسارات الصحيحة
+    depmod -b "$pkgdir" "$pkgver"
 }
 
 sha512sums="
