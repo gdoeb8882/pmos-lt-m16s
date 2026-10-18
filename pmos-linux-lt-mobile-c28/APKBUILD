@@ -11,26 +11,23 @@ makedepends=""
 source="kernel dtb.img modules"
 
 package() {
-    # 1. نسخ النواة إلى boot
     install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz
     install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz-$_flavor
-
-    # 2. نسخ ملف العتاد DTB
     install -Dm644 "$srcdir"/dtb.img "$pkgdir"/boot/dtb.img
-
-    # 3. إنشاء هيكل kernel release (هذا ما يبحث عنه mkinitfs)
+    
+    # إنشاء ملف kernel.release الذي يبحث عنه mkinitfs
     install -d "$pkgdir"/usr/share/kernel/$_flavor
     echo "$pkgver" > "$pkgdir"/usr/share/kernel/$_flavor/kernel.release
-
-    # 4. نسخ وحدات النواة إذا كانت موجودة
+    
+    # نسخ الوحدات (إذا وجدت)
     if [ -d "$srcdir"/modules ]; then
         install -d "$pkgdir"/lib/modules/$pkgver
-        cp -r "$srcdir"/modules/* "$pkgdir"/lib/modules/$pkgver/
+        cp -r "$srcdir"/modules/* "$pkgdir"/lib/modules/$pkgver/ 2>/dev/null || true
     fi
 }
 
 sha512sums="
 ae59ebcfc0c5adb1721fdc7992d9432e0fcf442ed5906b776e5c99413bba31b593b194a294efc22760de939f33deaddfc91f1050d5746e670374c7867fdd1d45  kernel
 c8349928d72de2a24a47334591d282b6a4b3602f53c77a38927032648d075bc22a7f427c43c9fbf3873d1a3a8b147281e47d3407afb68bb4497835f0eb6ef9f5  dtb.img
-fa159ab1ef9ba0c8ef2a8f879104b7cbd6315971551d488393e8d69e86e50f173a3c9a5b02791efb366c3cc562443723d2e369476352a573f15af7b06667a8bf  modules
+52a0cddc942d1c1c3ff39a96a9c86275303da4343a76fbd418dab6208d94ffe0aad57d3bd7abdc80e35d734ebfc68dfdaac59be450ef2541da8e038e618e98dc  modules
 "
