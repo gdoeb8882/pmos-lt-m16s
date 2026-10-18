@@ -38,8 +38,7 @@ jobs:
           
           cd "$PMAPORTS_DIR"
           git add -A
-          # استخدام --no-verify لتجاوز حارس الملفات
-          git -c user.email="ci@postmarketos.org" -c user.name="CI" commit --no-verify -m "Add local device packages for CI build"
+          git -c user.email="ci@postmarketos.org" -c user.name="CI" commit --no-verify -m "Add local packages"
           
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
@@ -48,14 +47,14 @@ jobs:
           pmbootstrap config ui sxmo-de-sway
           pmbootstrap config extra_packages "mtk-mkimage mkbootimg"
 
-      - name: Build Kernel and Device
+      - name: Build Kernel and Device (with error dump)
         run: |
-          pmbootstrap build --force linux-lt-mobile-c28
-          pmbootstrap build --force device-lt-m16s
+          pmbootstrap build --force linux-lt-mobile-c28 || (echo "=== KERNEL BUILD ERROR ===" && cat ~/.local/var/pmbootstrap/log.txt | tail -50 && exit 1)
+          pmbootstrap build --force device-lt-m16s || (echo "=== DEVICE BUILD ERROR ===" && cat ~/.local/var/pmbootstrap/log.txt | tail -50 && exit 1)
 
       - name: Generate Image
         run: |
-          pmbootstrap install --split --password 147147 --no-recommends || (echo "=== MKINITFS ERROR LOG ===" && cat ~/.local/var/pmbootstrap/log.txt | tail -50 && exit 1)
+          pmbootstrap install --split --password 147147 --no-recommends || (echo "=== MKINITFS ERROR ===" && cat ~/.local/var/pmbootstrap/log.txt | tail -50 && exit 1)
 
       - name: Export Images
         run: |
