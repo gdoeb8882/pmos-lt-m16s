@@ -38,45 +38,23 @@ jobs:
           
           cd "$PMAPORTS_DIR"
           git add -A
-          git -c user.email="ci@postmarketos.org" -c user.name="CI" commit -m "Add local device packages for CI build"
+          git -c user.email="ci@postmarketos.org" -c user.name="CI" commit -m "Add packages"
           
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
           pmbootstrap config jobs 2
           pmbootstrap config auto_zap_misconfigured_chroots yes
           pmbootstrap config ui sxmo-de-sway
+          pmbootstrap config extra_packages "mtk-mkimage mkbootimg"
 
       - name: Build Kernel and Device
         run: |
           pmbootstrap build --force linux-lt-mobile-c28
           pmbootstrap build --force device-lt-m16s
 
-      - name: Generate Image (mkinitfs Workaround)
+      - name: Generate Image
         run: |
-          set +e
-          
-          echo "=== Attempt 1: Standard install ==="
-          pmbootstrap install --split --password 147147 --no-recommends
-          rc=$?
-          if [ $rc -eq 0 ]; then echo "Attempt 1 succeeded!"; exit 0; fi
-          
-          echo "=== Attempt 1 failed. Trying workaround: remove 30-gpu-firmware.files ==="
-          sudo rm -f /usr/share/mkinitfs/files/30-gpu-firmware.files || true
-          pmbootstrap install --split --password 147147 --no-recommends
-          rc=$?
-          if [ $rc -eq 0 ]; then echo "Workaround 1 succeeded!"; exit 0; fi
-          
-          echo "=== Workaround 1 failed. Trying workaround: add mtk-mkimage to rootfs ==="
-          pmbootstrap chroot apk fix --rootfs || true
-          pmbootstrap chroot apk add mtk-mkimage --rootfs || true
-          pmbootstrap chroot apk fix --rootfs || true
-          pmbootstrap install --split --password 147147 --no-recommends
-          rc=$?
-          if [ $rc -eq 0 ]; then echo "Workaround 2 succeeded!"; exit 0; fi
-          
-          echo "=== All attempts failed. Dumping log ==="
-          cat ~/.local/var/pmbootstrap/log.txt | tail -150
-          exit 1
+          pmbootstrap install --split --password 147147 --no-recommends || (echo "=== MKINITFS ERROR LOG ===" && cat ~/.local/var/pmbootstrap/log.txt | tail -50 && exit 1)
 
       - name: Export Images
         run: |
