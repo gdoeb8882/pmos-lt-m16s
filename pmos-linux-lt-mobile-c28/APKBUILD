@@ -11,11 +11,21 @@ makedepends=""
 source="kernel dtb.img modules"
 
 package() {
+    # 1. نسخ النواة إلى boot
     install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz
+    install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz-$_flavor
+
+    # 2. نسخ ملف العتاد DTB
     install -Dm644 "$srcdir"/dtb.img "$pkgdir"/boot/dtb.img
+
+    # 3. إنشاء هيكل kernel release (هذا ما يبحث عنه mkinitfs)
+    install -d "$pkgdir"/usr/share/kernel/$_flavor
+    echo "$pkgver" > "$pkgdir"/usr/share/kernel/$_flavor/kernel.release
+
+    # 4. نسخ وحدات النواة إذا كانت موجودة
     if [ -d "$srcdir"/modules ]; then
-        mkdir -p "$pkgdir"/lib/modules
-        cp -r "$srcdir"/modules/* "$pkgdir"/lib/modules/
+        install -d "$pkgdir"/lib/modules/$pkgver
+        cp -r "$srcdir"/modules/* "$pkgdir"/lib/modules/$pkgver/
     fi
 }
 
