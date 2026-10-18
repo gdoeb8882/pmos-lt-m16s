@@ -45,7 +45,7 @@ jobs:
           pmbootstrap config jobs 2
           pmbootstrap config auto_zap_misconfigured_chroots yes
           pmbootstrap config ui sxmo-de-sway
-          pmbootstrap config extra_packages "mtk-mkimage,mkbootimg"
+          pmbootstrap config extra_packages "mtk-mkimage,mkbootimg,android-tools"
 
       - name: Build Kernel and Device
         run: |
