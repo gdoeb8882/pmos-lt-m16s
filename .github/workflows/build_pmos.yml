@@ -36,22 +36,26 @@ jobs:
           cp -r pmos-lt-m16s "$PMAPORTS_DIR/device/testing/device-lt-m16s"
           cp -r pmos-linux-lt-mobile-c28 "$PMAPORTS_DIR/device/testing/linux-lt-mobile-c28"
           
+          # ===== الإصلاح الجديد: تنظيف pmaports =====
+          cd "$PMAPORTS_DIR"
+          git add -A
+          git -c user.email="ci@postmarketos.org" -c user.name="CI" commit -m "Add local device packages for CI build"
+          # ==========================================
+          
           pmbootstrap config device lt-m16s
           pmbootstrap config kernel lt-mobile-c28
           pmbootstrap config jobs 2
+          pmbootstrap config auto_zap_misconfigured_chroots yes
           pmbootstrap config ui sxmo-de-sway
-          # إضافة التبعيات المحتملة التي قد تكون مفقودة
-          pmbootstrap config extra_packages "postmarketos-base-ui postmarketos-base-ui-networkmanager networkmanager-openrc"
 
       - name: Build Kernel and Device
         run: |
           pmbootstrap build --force linux-lt-mobile-c28
           pmbootstrap build --force device-lt-m16s
 
-      - name: Generate Image (Verbose + Details)
+      - name: Generate Image
         run: |
-          # -v و --details-to-stdout يطبعان كل شيء، بما في ذلك خطأ apk الحقيقي
-          pmbootstrap -v --details-to-stdout install --split --password 147147 --no-recommends
+          pmbootstrap install --split --password 147147 --no-recommends
 
       - name: Export Images
         run: |
