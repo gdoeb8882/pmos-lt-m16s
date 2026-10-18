@@ -21,7 +21,6 @@ package() {
     
     # استخراج الوحدات وضمان استقرارها في المسار القياسي
     install -d "$pkgdir"/usr/lib/modules/$pkgver
-    install -d "$pkgdir/usr/lib/modules"
     tar -xzf "$srcdir"/modules.tar.gz -C "$pkgdir"/usr/lib/modules/$pkgver/ --strip-components=1 || tar -xzf "$srcdir"/modules.tar.gz -C "$pkgdir"/usr/lib/modules/$pkgver/
     
     # دعم نظام المسارات المدمجة
