@@ -11,6 +11,7 @@ makedepends="kmod"
 source="kernel dtb.img modules.tar.gz"
 
 package() {
+	export INSTALL_MOD_PATH="$pkgdir/usr"
     install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz
     install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz-$_flavor
     install -Dm644 "$srcdir"/dtb.img "$pkgdir"/boot/dtb.img
