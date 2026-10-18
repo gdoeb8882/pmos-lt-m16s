@@ -25,7 +25,6 @@ package() {
     
     # دعم نظام المسارات المدمجة
     mkdir -p "$pkgdir"/usr/lib
-    ln -s /lib/modules "$pkgdir"/usr/lib/modules
     
     # تشغيل depmod لتوليد ملفات الفهرس إجبارياً
     depmod -a -b "$pkgdir" "$pkgver"
