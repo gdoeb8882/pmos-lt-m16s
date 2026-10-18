@@ -8,9 +8,7 @@ options="!check !strip !pmb:crossdirect"
 license="GPL-2.0-only"
 
 depends="
-    postmarketos-base
-    postmarketos-ui-phosh
-    postmarketos-ui-sxmo
+    postmarketos-ui-sxmo-de-sway
     linux-lt-mobile-c28
     mkbootimg
 "
