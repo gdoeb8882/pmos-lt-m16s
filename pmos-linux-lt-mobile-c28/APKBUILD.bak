@@ -1,0 +1,37 @@
+pkgname="linux-lt-mobile-c28"
+pkgver="6.6.89"
+pkgrel="5"
+pkgdesc="Prebuilt Android Kernel for LT C28 (MT6765)"
+url="https://kernel.org"
+arch="aarch64"
+_flavor="lt-mobile-c28"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="kmod"
+source="kernel dtb.img modules.tar.gz"
+
+package() {
+    install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz
+    install -Dm644 "$srcdir"/kernel "$pkgdir"/boot/vmlinuz-$_flavor
+    install -Dm644 "$srcdir"/dtb.img "$pkgdir"/boot/dtb.img
+    
+    install -d "$pkgdir"/usr/share/kernel/$_flavor
+    echo "$pkgver" > "$pkgdir"/usr/share/kernel/$_flavor/kernel.release
+    
+    # استخراج الوحدات وضمان استقرارها في المسار القياسي
+    install -d "$pkgdir"/lib/modules/$pkgver
+    tar -xzf "$srcdir"/modules.tar.gz -C "$pkgdir"/lib/modules/$pkgver/ --strip-components=1 || tar -xzf "$srcdir"/modules.tar.gz -C "$pkgdir"/lib/modules/$pkgver/
+    
+    # دعم نظام المسارات المدمجة
+    mkdir -p "$pkgdir"/usr/lib
+    ln -s /lib/modules "$pkgdir"/usr/lib/modules
+    
+    # تشغيل depmod لتوليد ملفات الفهرس إجبارياً
+    depmod -a -b "$pkgdir" "$pkgver"
+}
+
+sha512sums="
+ae59ebcfc0c5adb1721fdc7992d9432e0fcf442ed5906b776e5c99413bba31b593b194a294efc22760de939f33deaddfc91f1050d5746e670374c7867fdd1d45  kernel
+c8349928d72de2a24a47334591d282b6a4b3602f53c77a38927032648d075bc22a7f427c43c9fbf3873d1a3a8b147281e47d3407afb68bb4497835f0eb6ef9f5  dtb.img
+e451c34d115fd7a2cae3ff871b3d3184e9d304ff4eb8cc6d35747249c6d53f33ba243477cb6027be3e5069f69ca88660168130aad49c0f8b1efa79d436b80c7e  modules.tar.gz
+"
